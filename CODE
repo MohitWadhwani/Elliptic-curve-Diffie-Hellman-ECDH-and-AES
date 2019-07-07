@@ -1,0 +1,155 @@
+
+import java.io.IOException;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.SecureRandom;
+import java.security.Security;
+import java.util.Base64;
+import java.util.Scanner;
+import javax.crypto.Cipher;
+import javax.crypto.KeyAgreement;
+import javax.crypto.SecretKey;
+import org.bouncycastle.jce.ECNamedCurveTable;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.jce.spec.ECNamedCurveParameterSpec;
+
+
+/**
+ *
+ * @author Mohit Wadhwani
+ */
+public class ECDH {
+
+ static long start;
+	 static long elapsed;
+	 static long start1;
+	 static long elapsed1;
+          static byte[] encrypted;
+
+    static private KeyPair akey;
+    static private KeyPair bkey;
+    public static byte[] iv = new SecureRandom().generateSeed(16);
+        
+    public static void main(String[] args) throws IOException, Exception {
+        Scanner in=new Scanner(System.in);
+    	 String plainText="";
+          plainText="Hello how are you"; 
+        System.out.println("Original plaintext message: " + plainText);
+          Security.addProvider(new BouncyCastleProvider());
+
+// initializing parameter specs secp256r1/prime192v1
+ECNamedCurveParameterSpec ecSpec = ECNamedCurveTable.getParameterSpec("brainpoolP160R1");
+KeyPairGenerator generator = KeyPairGenerator.getInstance("ECIES");
+// initialize key pair generator
+generator.initialize(ecSpec,new SecureRandom());
+// Key pair to store public and private key
+ akey = generator.generateKeyPair();
+ bkey = generator.generateKeyPair();
+ 
+ 	 KeyPair keyPairA=generateECKeys();
+          KeyPair keyPairB=generateECKeys();
+        
+        // Create two AES secret keys to encrypt/decrypt the message
+        //Alice take Bob public key and his private key to obtain shared secret key
+        SecretKey secretKeyA = generateSharedSecret(keyPairA.getPrivate(),
+               keyPairB.getPublic());//alce
+                     //bob take alice public key and his private key to obtain shared secret key
+             String alce = secretKeyA.getEncoded().toString();
+         
+         SecretKey secretKeyB = generateSharedSecret(keyPairB.getPrivate(),
+              keyPairA.getPublic());//bob
+        // Encrypt the message using 'secretKeyA'
+       
+        start = System.currentTimeMillis();
+        String cipherText = encryptString(secretKeyA, plainText);
+        elapsed = System.currentTimeMillis() - start;
+        Base64.Encoder encoder = Base64.getEncoder();
+      String encoded= encoder.encodeToString(cipherText.getBytes());
+       String s1=encoded.replace(""," ");
+       System.out.println("Encrypted cipher text:"+ s1); 
+      
+// Decrypt the message using 'secretKeyB'
+       
+            start1 = System.currentTimeMillis();
+            String decryptedPlainText = decryptString(secretKeyB);
+            elapsed1 = System.currentTimeMillis() - start1;
+            System.out.println("Decrypted cipher text: " + decryptedPlainText);
+                 System.out.println("Encription time milliseconds "+ elapsed );
+     System.out.println("decription time milliseconds "+ elapsed1 );
+     
+    }
+    
+    public static KeyPair generateECKeys() {
+        try {
+            ECNamedCurveParameterSpec parameterSpec = ECNamedCurveTable.getParameterSpec("brainpoolp256r1");
+            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(
+                    "ECDH", new org.bouncycastle.jce.provider.BouncyCastleProvider());
+             SecureRandom random = SecureRandom.getInstance("SHA1PRNG");
+            keyPairGenerator.initialize(parameterSpec,random);
+            KeyPair keyPair = keyPairGenerator.generateKeyPair();
+           
+            return keyPair;
+        } catch (NoSuchAlgorithmException | InvalidAlgorithmParameterException
+                 e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    public static SecretKey generateSharedSecret(PrivateKey privateKey,
+            PublicKey publicKey) {
+        try {
+            KeyAgreement keyAgreement = KeyAgreement.getInstance("ECDH", new org.bouncycastle.jce.provider.BouncyCastleProvider());
+            keyAgreement.init(privateKey);
+            keyAgreement.doPhase(publicKey, true);
+
+            //SecretKey key = keyAgreement.generateSecret("AES");
+            SecretKey key = keyAgreement.generateSecret("AES");
+            //System.out.println("secret :"+ key);
+            return key;
+        } catch (InvalidKeyException | NoSuchAlgorithmException
+                 e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    public static String encryptString(SecretKey key, String plainText) {
+        try {        
+           Cipher cipher = Cipher.getInstance("AES");
+            //Cipher cipher = Cipher.getInstance("ECIES",BouncyCastleProvider.PROVIDER_NAME);
+             cipher.init(Cipher.ENCRYPT_MODE, key);
+            //cipher.init(Cipher.ENCRYPT_MODE, new IEKeySpec(key));
+              encrypted = cipher.doFinal(plainText.getBytes("UTF8"));
+                String plain_encrypt = new String(encrypted);
+                   return plain_encrypt;
+           
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    public static String decryptString(SecretKey key)
+    {
+        try {
+            Cipher  cipher = Cipher.getInstance("AES");
+            
+           cipher.init(Cipher.DECRYPT_MODE, key);
+            byte[] decrypted = cipher.doFinal(encrypted);
+          String plain_output = new String(decrypted);
+          return plain_output;
+
+        } catch (Exception e)
+        {
+            e.printStackTrace();
+            return null;
+        }    
+    }
+}
